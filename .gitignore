@@ -1,0 +1,5 @@
+node_modules/
+.env
+drizzle/
+*.log
+.DS_Store
