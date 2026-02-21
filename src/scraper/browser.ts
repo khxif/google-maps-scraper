@@ -1,6 +1,7 @@
-import { chromium } from 'playwright';
+import { chromium, Browser, BrowserContext } from 'playwright';
 import { getEnv } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import type { BrowserOptions } from '../types.js';
 
 /** Rotating user agents to reduce fingerprinting. */
 const USER_AGENTS = [
@@ -9,19 +10,19 @@ const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
 ];
 
-function pickUserAgent() {
+function pickUserAgent(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
 /**
  * Launch a persistent browser context with anti-detection settings.
  * Headful mode, optional proxy, user-agent rotation.
- * @param {{ proxy?: string }} [opts]
- * @returns {Promise<{ browser: import('playwright').Browser, context: import('playwright').BrowserContext }>}
  */
-export async function launchBrowser(opts = {}) {
+export async function launchBrowser(
+  opts: BrowserOptions = {}
+): Promise<{ browser: Browser; context: BrowserContext }> {
   const proxyUrl = opts.proxy || getEnv('PROXY_URL');
-  const launchOpts = {
+  const launchOpts: Parameters<typeof chromium.launch>[0] = {
     headless: false,
     args: [
       '--disable-blink-features=AutomationControlled',

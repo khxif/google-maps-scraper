@@ -2,8 +2,9 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { stays } from './schema.js';
 import { getEnv } from '../config/env.js';
+import type { Place } from '../types.js';
 
-let _db = null;
+let _db: ReturnType<typeof drizzle> | null = null;
 
 /**
  * Get Drizzle DB instance (singleton).
@@ -21,10 +22,8 @@ export function getDb() {
 
 /**
  * Batch insert stays, ignoring duplicates on google_maps_url.
- * @param {Array<object>} rows - Array of stay objects matching schema
- * @returns {{ processed: number }}
  */
-export async function upsertStays(rows) {
+export async function upsertStays(rows: Place[]): Promise<{ processed: number }> {
   if (!rows.length) return { processed: 0 };
   const db = getDb();
   const BATCH_SIZE = 50;

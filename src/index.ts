@@ -3,7 +3,7 @@ import { upsertStays } from './db/index.js';
 import { runScraper } from './scraper/scraper.js';
 import { logger } from './utils/logger.js';
 
-async function main() {
+async function main(): Promise<void> {
   logger.info('Starting Google Maps scraper (Varkala stays)');
   const start = Date.now();
 
@@ -19,7 +19,7 @@ async function main() {
     const { processed } = await upsertStays(stays);
     logger.info('Saved to DB:', processed, 'stays (duplicates on google_maps_url ignored)');
   } catch (err) {
-    logger.error('Fatal error:', err.message);
+    logger.error('Fatal error:', (err as Error).message);
     process.exit(1);
   }
 
