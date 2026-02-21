@@ -1,9 +1,9 @@
-import { launchBrowser } from './browser.js';
-import { parsePlaceCard, parseDetailPanel } from './parser.js';
+import { getEnv } from '../config/env.js';
 import { delay } from '../utils/delay.js';
 import { logger } from '../utils/logger.js';
 import { retry } from '../utils/retry.js';
-import { getEnv } from '../config/env.js';
+import { launchBrowser } from './browser.js';
+import { parseDetailPanel } from './parser.js';
 
 const MAPS_SEARCH_BASE = 'https://www.google.com/maps/search/';
 const DELAY_MIN = Number(getEnv('DELAY_MIN_MS', '2000')) || 2000;
@@ -22,6 +22,7 @@ const SEARCH_QUERIES = [
 async function scrollFeedUntilDone(page) {
   const feed = page.locator('div[role="feed"]').first();
   await feed.waitFor({ state: 'visible', timeout: 15000 }).catch(() => null);
+
   let lastCount = 0;
   let stableCount = 0;
   const scrollStep = 400;
@@ -29,6 +30,7 @@ async function scrollFeedUntilDone(page) {
 
   for (let i = 0; i < 100; i++) {
     const cards = await page.locator('div[role="feed"] a[href*="/maps/place/"]').all();
+
     const count = cards.length;
     if (count === lastCount) {
       stableCount += 1;
@@ -37,6 +39,7 @@ async function scrollFeedUntilDone(page) {
       stableCount = 0;
     }
     lastCount = count;
+
     await feed.evaluate((el, step) => {
       el.scrollTop = el.scrollTop + step;
     }, scrollStep);
@@ -53,9 +56,11 @@ async function scrollFeedUntilDone(page) {
 async function getPlaceUrls(page) {
   const links = await page.locator('div[role="feed"] a[href*="/maps/place/"]').all();
   const urls = new Set();
+
   for (const a of links) {
     const href = await a.getAttribute('href');
     if (!href) continue;
+    
     const full = href.startsWith('http') ? href : `https://www.google.com${href}`;
     urls.add(full.split('?')[0]);
   }
@@ -76,13 +81,29 @@ async function scrapeOnePlace(page, placeUrl, category, cardInfo = {}) {
       async () => {
         await page.goto(placeUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
       },
-      { maxAttempts: 2, initialMs: 2000 }
+      { maxAttempts: 2, initialMs: 2000 },
     );
     await delay(DELAY_MIN, DELAY_MAX);
 
     const details = await parseDetailPanel(page, placeUrl);
-    const name = cardInfo.name || await page.locator('h1').first().textContent().then((t) => t?.trim()).catch(() => null);
-    const rating = cardInfo.rating ?? parseFloat(await page.locator('[aria-label*="stars"]').first().getAttribute('aria-label')?.then((a) => a?.match(/(\d+\.?\d*)/)?.[1]) || '') ?? null;
+    const name =
+      cardInfo.name ||
+      (await page
+        .locator('h1')
+        .first()
+        .textContent()
+        .then(t => t?.trim())
+        .catch(() => null));
+    const rating =
+      cardInfo.rating ??
+      parseFloat(
+        (await page
+          .locator('[aria-label*="stars"]')
+          .first()
+          .getAttribute('aria-label')
+          ?.then(a => a?.match(/(\d+\.?\d*)/)?.[1])) || '',
+      ) ??
+      null;
     const totalReviews = cardInfo.totalReviews ?? null;
 
     if (!name && !details.address) {
@@ -137,6 +158,7 @@ function dedupeStays(list) {
 export async function runScraper(opts = {}) {
   const { browser, context } = await launchBrowser(opts);
   const page = await context.newPage();
+
   const allStays = [];
   const seenUrls = new Set();
 
@@ -149,7 +171,7 @@ export async function runScraper(opts = {}) {
         async () => {
           await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
         },
-        { maxAttempts: 3, initialMs: 3000 }
+        { maxAttempts: 3, initialMs: 3000 },
       );
       await delay(DELAY_MIN, DELAY_MAX);
 
@@ -159,10 +181,13 @@ export async function runScraper(opts = {}) {
       for (let i = 0; i < urls.length; i++) {
         const url = urls[i];
         if (seenUrls.has(url)) continue;
+
         seenUrls.add(url);
         logger.info(`Place ${i + 1}/${urls.length} (${category}):`, url.slice(0, 60) + '...');
+
         const stay = await scrapeOnePlace(page, url, category);
         if (stay) allStays.push(stay);
+
         await delay(DELAY_MIN, DELAY_MAX);
       }
     }

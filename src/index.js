@@ -1,8 +1,7 @@
-#!/usr/bin/env node
 import 'dotenv/config';
-import { runScraper } from './src/scraper/scraper.js';
-import { upsertStays } from './src/db/index.js';
-import { logger } from './src/utils/logger.js';
+import { upsertStays } from './db/index.js';
+import { runScraper } from './scraper/scraper.js';
+import { logger } from './utils/logger.js';
 
 async function main() {
   logger.info('Starting Google Maps scraper (Varkala stays)');
