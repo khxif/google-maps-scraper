@@ -52,6 +52,6 @@ export async function launchBrowser(
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
   });
-  logger.info('Browser launched (headful)', proxyUrl ? 'with proxy' : '');
+  logger.info({ proxy: proxyUrl || 'none' }, 'Browser launched (headful)');
   return { browser, context };
 }

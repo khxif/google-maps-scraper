@@ -1,17 +1,17 @@
-const PREFIX = '[maps-scraper]';
+import pino from 'pino';
 
-function ts(): string {
-  return new Date().toISOString();
-}
-
-export const logger = {
-  info(msg: string, ...args: unknown[]): void {
-    console.log(`${ts()} ${PREFIX}`, msg, ...args);
-  },
-  warn(msg: string, ...args: unknown[]): void {
-    console.warn(`${ts()} ${PREFIX}`, msg, ...args);
-  },
-  error(msg: string, ...args: unknown[]): void {
-    console.error(`${ts()} ${PREFIX}`, msg, ...args);
-  },
-};
+// Create Pino logger with pretty printing in development
+export const logger = pino({
+  name: 'maps-scraper',
+  level: process.env.LOG_LEVEL || 'info',
+  transport: process.env.NODE_ENV === 'production'
+    ? undefined
+    : {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname',
+        },
+      },
+});

@@ -16,9 +16,7 @@ const SEARCH_QUERIES: SearchQuery[] = [
   // { q: 'homestays in Varkala', category: 'homestay' },
 ];
 
-/**
- * Scroll the results feed until no new items load (infinite scroll).
- */
+// Scroll the results feed until no new items load (infinite scroll).
 async function scrollFeedUntilDone(page: Page): Promise<void> {
   const feed = page.locator('div[role="feed"]').first();
   await feed.waitFor({ state: 'visible', timeout: 15000 }).catch(() => null);
@@ -45,7 +43,7 @@ async function scrollFeedUntilDone(page: Page): Promise<void> {
     }, scrollStep);
     await delay(DELAY_MIN, DELAY_MAX);
   }
-  logger.info('Scroll finished, found', lastCount, 'place links');
+  logger.info({ placeLinks: lastCount }, 'Scroll finished');
 }
 
 /**
@@ -58,7 +56,7 @@ async function getPlaceUrls(page: Page): Promise<string[]> {
   for (const a of links) {
     const href = await a.getAttribute('href');
     if (!href) continue;
-    
+
     const full = href.startsWith('http') ? href : `https://www.google.com${href}`;
     urls.add(full.split('?')[0]);
   }
@@ -69,7 +67,9 @@ async function getPlaceUrls(page: Page): Promise<string[]> {
  * Extract rating and total reviews from the detail page.
  * IMPROVED: Better handling of lazy-loaded rating and reviews.
  */
-async function extractRatingAndReviews(page: Page): Promise<{ rating: number | null; totalReviews: number | null }> {
+async function extractRatingAndReviews(
+  page: Page,
+): Promise<{ rating: number | null; totalReviews: number | null }> {
   let rating: number | null = null;
   let totalReviews: number | null = null;
 
@@ -91,7 +91,11 @@ async function extractRatingAndReviews(page: Page): Promise<{ rating: number | n
 
     // Try alternative rating selector (sometimes in a different format)
     if (rating === null) {
-      const ratingText = await page.locator('span[role="img"][aria-label*="stars"]').first().textContent().catch(() => null);
+      const ratingText = await page
+        .locator('span[role="img"][aria-label*="stars"]')
+        .first()
+        .textContent()
+        .catch(() => null);
       if (ratingText) {
         const match = ratingText.match(/(\d+\.?\d*)/);
         if (match) rating = parseFloat(match[1]);
@@ -100,9 +104,11 @@ async function extractRatingAndReviews(page: Page): Promise<{ rating: number | n
 
     // Extract total reviews - IMPROVED with multiple strategies
     // Strategy 1: Look for review count in button or text near rating
-    const reviewLocator = page.locator('button[aria-label*="reviews"], a[aria-label*="reviews"]').first();
+    const reviewLocator = page
+      .locator('button[aria-label*="reviews"], a[aria-label*="reviews"]')
+      .first();
     await reviewLocator.waitFor({ state: 'visible', timeout: 2000 }).catch(() => null);
-    
+
     if (await reviewLocator.isVisible().catch(() => false)) {
       const reviewAriaLabel = await reviewLocator.getAttribute('aria-label');
       if (reviewAriaLabel) {
@@ -115,7 +121,11 @@ async function extractRatingAndReviews(page: Page): Promise<{ rating: number | n
 
     // Strategy 2: Look in text content near rating
     if (totalReviews === null) {
-      const reviewText = await page.locator('span[aria-label*="reviews"]').first().textContent().catch(() => null);
+      const reviewText = await page
+        .locator('span[aria-label*="reviews"]')
+        .first()
+        .textContent()
+        .catch(() => null);
       if (reviewText) {
         const match = reviewText.match(/(\d[\d,]*)\s*reviews?/i);
         if (match) totalReviews = parseInt(match[1].replace(/,/g, ''), 10);
@@ -124,14 +134,18 @@ async function extractRatingAndReviews(page: Page): Promise<{ rating: number | n
 
     // Strategy 3: Look for reviews text anywhere in the panel
     if (totalReviews === null) {
-      const panelText = await page.locator('[role="main"]').first().textContent().catch(() => null);
+      const panelText = await page
+        .locator('[role="main"]')
+        .first()
+        .textContent()
+        .catch(() => null);
       if (panelText) {
         const match = panelText.match(/(\d[\d,]+)\s*reviews?/i);
         if (match) totalReviews = parseInt(match[1].replace(/,/g, ''), 10);
       }
     }
   } catch (err) {
-    logger.warn('Failed to extract rating/reviews:', (err as Error).message);
+    logger.warn({ error: (err as Error).message }, 'Failed to extract rating/reviews');
   }
 
   return { rating, totalReviews };
@@ -143,14 +157,14 @@ async function extractRatingAndReviews(page: Page): Promise<{ rating: number | n
 async function scrapeOnePlace(
   page: Page,
   placeUrl: string,
-  category: string
+  category: string,
 ): Promise<Place | null> {
   try {
     await retry(
       async () => {
         await page.goto(placeUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
       },
-      { maxAttempts: 2, initialMs: 2000 }
+      { maxAttempts: 2, initialMs: 2000 },
     );
     await delay(DELAY_MIN, DELAY_MAX);
 
@@ -169,7 +183,7 @@ async function scrapeOnePlace(
     const details = await parseDetailPanel(page, placeUrl);
 
     if (!name && !details.address) {
-      logger.warn('Skipping place with no name/address:', placeUrl);
+      logger.warn({ url: placeUrl }, 'Skipping place with no name/address');
       return null;
     }
 
@@ -187,7 +201,7 @@ async function scrapeOnePlace(
       imageUrls: Array.isArray(details.imageUrls) ? details.imageUrls : [],
     };
   } catch (err) {
-    logger.error('Failed to scrape place', placeUrl, (err as Error).message);
+    logger.error({ url: placeUrl, error: (err as Error).message }, 'Failed to scrape place');
     return null;
   }
 }
@@ -223,13 +237,13 @@ export async function runScraper(opts: BrowserOptions = {}): Promise<Place[]> {
   try {
     for (const { q, category } of SEARCH_QUERIES) {
       const searchUrl = MAPS_SEARCH_BASE + encodeURIComponent(q);
-      logger.info('Searching:', q);
+      logger.info({ query: q }, 'Searching');
 
       await retry(
         async () => {
           await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
         },
-        { maxAttempts: 3, initialMs: 3000 }
+        { maxAttempts: 3, initialMs: 3000 },
       );
       await delay(DELAY_MIN, DELAY_MAX);
 
@@ -241,7 +255,10 @@ export async function runScraper(opts: BrowserOptions = {}): Promise<Place[]> {
         if (seenUrls.has(url)) continue;
 
         seenUrls.add(url);
-        logger.info(`Place ${i + 1}/${urls.length} (${category}):`, url.slice(0, 60) + '...');
+        logger.info(
+          { current: i + 1, total: urls.length, category, url: url.slice(0, 60) + '...' },
+          'Scraping place',
+        );
 
         const stay = await scrapeOnePlace(page, url, category);
         if (stay) allStays.push(stay);
@@ -254,6 +271,6 @@ export async function runScraper(opts: BrowserOptions = {}): Promise<Place[]> {
   }
 
   const deduped = dedupeStays(allStays);
-  logger.info('Scraped', allStays.length, 'places, deduped to', deduped.length);
+  logger.info({ scraped: allStays.length, deduped: deduped.length }, 'Scraping summary');
   return deduped;
 }

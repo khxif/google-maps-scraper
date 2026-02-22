@@ -9,7 +9,7 @@ async function main(): Promise<void> {
 
   try {
     const stays = await runScraper();
-    logger.info('Scraped', stays.length, 'places');
+    logger.info({ count: stays.length }, 'Scraped places');
 
     if (stays.length === 0) {
       logger.warn('No stays to save');
@@ -17,13 +17,13 @@ async function main(): Promise<void> {
     }
 
     const { processed } = await upsertStays(stays);
-    logger.info('Saved to DB:', processed, 'stays (duplicates on google_maps_url ignored)');
+    logger.info({ processed }, 'Saved to DB (duplicates on google_maps_url ignored)');
   } catch (err) {
-    logger.error('Fatal error:', (err as Error).message);
+    logger.error({ error: (err as Error).message }, 'Fatal error');
     process.exit(1);
   }
 
-  logger.info('Done in', ((Date.now() - start) / 1000).toFixed(1), 's');
+  logger.info({ durationSeconds: ((Date.now() - start) / 1000).toFixed(1) }, 'Scraping completed');
 }
 
 main();

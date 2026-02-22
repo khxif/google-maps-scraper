@@ -21,7 +21,7 @@ export async function retry<T>(
         throw lastErr;
       }
       const wait = Math.min(initialMs * Math.pow(2, attempt - 1), maxMs);
-      logger.warn(`Attempt ${attempt}/${maxAttempts} failed, retrying in ${wait}ms:`, lastErr.message);
+      logger.warn({ attempt, maxAttempts, waitMs: wait, error: lastErr.message }, 'Retry attempt failed');
       await delayMs(wait);
     }
   }
