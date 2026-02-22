@@ -12,8 +12,18 @@ const DELAY_MIN = Number(getEnv('DELAY_MIN_MS', '2000')) || 2000;
 const DELAY_MAX = Number(getEnv('DELAY_MAX_MS', '5000')) || 5000;
 
 const SEARCH_QUERIES: SearchQuery[] = [
-  { q: 'resorts in Varkala', category: 'resort' },
-  // { q: 'homestays in Varkala', category: 'homestay' },
+  // Core searches - cast a wide net
+  { q: 'hotels in Varkala Kerala', category: 'hotel' },
+  // { q: 'resorts in Varkala Kerala', category: 'resort' },
+  // { q: 'homestays in Varkala Kerala', category: 'homestay' },
+  
+  // // Beach/cliff specific (different result sets)
+  // { q: 'Varkala Cliff hotels', category: 'hotel' },
+  // { q: 'Papanasam Beach resorts', category: 'resort' },
+  
+  // // Catch-all broader terms
+  // { q: 'accommodation Varkala', category: 'accommodation' },
+  // { q: 'places to stay Varkala', category: 'accommodation' },
 ];
 
 // Scroll the results feed until no new items load (infinite scroll).
@@ -23,26 +33,50 @@ async function scrollFeedUntilDone(page: Page): Promise<void> {
 
   let lastCount = 0;
   let stableCount = 0;
-  const scrollStep = 400;
-  const maxStable = 3;
+  const scrollStep = 500; // Increased from 400
+  const maxStable = 5; // Increased from 3 - wait longer before assuming we're done
+  const maxScrollAttempts = 150; // Increased from 100
 
-  for (let i = 0; i < 100; i++) {
+  logger.info('Starting infinite scroll...');
+
+  for (let i = 0; i < maxScrollAttempts; i++) {
     const cards = await page.locator('div[role="feed"] a[href*="/maps/place/"]').all();
-
     const count = cards.length;
+
+    // Check if Google Maps shows "You've reached the end" message
+    const endOfResults = await page
+      .locator('text=/reached the end|no more results|that\'s all/i')
+      .first()
+      .isVisible()
+      .catch(() => false);
+    
+    if (endOfResults) {
+      logger.info({ finalCount: count, scrollAttempts: i + 1 }, 'Reached end of results (Google Maps confirmation)');
+      break;
+    }
+
     if (count === lastCount) {
       stableCount += 1;
-      if (stableCount >= maxStable) break;
+      if (stableCount >= maxStable) {
+        logger.info({ finalCount: count, scrollAttempts: i + 1 }, 'Scroll complete - no new results');
+        break;
+      }
     } else {
+      // New results found, reset stable counter
       stableCount = 0;
+      logger.info({ currentCount: count, newItems: count - lastCount }, 'Found more results');
     }
     lastCount = count;
 
+    // Scroll down
     await feed.evaluate((el, step) => {
       el.scrollTop = el.scrollTop + step;
     }, scrollStep);
-    await delay(DELAY_MIN, DELAY_MAX);
+    
+    // Random delay to appear more human-like
+    await delay(1000, 2000); // Reduced delay between scrolls
   }
+  
   logger.info({ placeLinks: lastCount }, 'Scroll finished');
 }
 
